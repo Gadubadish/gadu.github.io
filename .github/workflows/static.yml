@@ -97,7 +97,7 @@ const commands = {
 
 // String commands
 
-  help: () => ["Available commands:", "HELP", "STATUS", "ABOUT", "CLEAR"],
+  help: () => ["Commands:", "HELP", "STATUS", "ABOUT", "CLEAR"],
   status: () => ["All systems operational."],
   about: () => ["Curved CRT terminal demo."],
 
