@@ -4,21 +4,36 @@
 <meta charset="UTF-8">
 <title>TEST</title>
 <style>
-  body { margin: 0; overflow: hidden; background: url(images/CRT.jpg); background-size: cover; background-position: center; background-repeat: no-repeat; }
+  body {
+    margin: 0;
+    overflow: hidden;
+    background: black url(images/CRT.png) no-repeat;
+    background-position: -10px 70px; /* fixed position */
+    background-size: 2080px; /* keep original image size */
+  }
   canvas { display: block; }
 </style>
 </head>
 <body>
+
 <script type="module">
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 
-// My const*s
+// --- Plane & animation flags ---
+let plane; // defined later
+let startupDone = false;
+let SUinitiated = false;
 
-//const click = new Audio("sfx/click.mp3");
+// --- Fixed layout dimensions ---
+const size = 1.15;
+const WIDTH = 1920*size;
+const HEIGHT = 1080*size;
+const ASPECT = WIDTH / HEIGHT;
 
+
+// --- Audio (unchanged) ---
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 let buffer;
-
 fetch("sfx/click.mp3")
   .then(r => r.arrayBuffer())
   .then(data => audioCtx.decodeAudioData(data))
@@ -28,188 +43,194 @@ function playClick() {
     if (!buffer) return;
     const source = audioCtx.createBufferSource();
     source.buffer = buffer;
-    source.playbackRate.value = 0.9 + Math.random() * 0.2; // random pitch
+    source.playbackRate.value = 0.9 + Math.random() * 0.2;
     source.connect(audioCtx.destination);
     source.start();
 }
 
-
-
-// Scene setup
+// --- Scene setup ---
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1000);
-camera.position.z = 6;
+const camera = new THREE.PerspectiveCamera(60, ASPECT, 0.1, 1000);
+camera.position.z = 7;
+camera.position.x = 0;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setClearColor(0x000000, 0);
-renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setSize(WIDTH, HEIGHT);
+renderer.domElement.style.position = "absolute";
+renderer.domElement.style.left = "-250px";
+renderer.domElement.style.top = "0px";
 document.body.appendChild(renderer.domElement);
 
-// Canvas for terminal text
+// --- Terminal canvas ---
 const canvas = document.createElement('canvas');
 canvas.width = 1024;
-canvas.height = 512;
+canvas.height = 576;
 const ctx = canvas.getContext('2d');
 ctx.fillStyle = 'black';
 ctx.fillRect(0, 0, canvas.width, canvas.height);
 ctx.fillStyle = '#00ff00';
 ctx.font = '20px monospace';
-
 const texture = new THREE.CanvasTexture(canvas);
 
-// CRT-like curved plane
+// --- CRT-like curved plane ---
 const width = 6;
-const height = 4;
+const height = 4.5;
 const segmentsX = 60;
 const segmentsY = 60;
 const geometry = new THREE.PlaneGeometry(width, height, segmentsX, segmentsY);
 const positions = geometry.attributes.position.array;
-
 for (let i = 0; i < positions.length; i += 3) {
-  const x = positions[i];
-  const y = positions[i + 1];
-  const r = Math.sqrt(Math.pow(x/(width/2),2) + Math.pow(y/(height/2),2));
-  positions[i + 2] = 0.6 * Math.cos(r * Math.PI/2); // smooth CRT-style bulge
+    const x = positions[i], y = positions[i+1];
+    const r = Math.sqrt((x/(width/2))**2 + (y/(height/2))**2);
+    positions[i+2] = 0.6 * Math.cos(r * Math.PI/2); 
 }
 geometry.attributes.position.needsUpdate = true;
 geometry.computeVertexNormals();
 
-
-// Use the canvas as material
 const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
-const plane = new THREE.Mesh(geometry, material);
+plane = new THREE.Mesh(geometry, material);
+plane.visible = false; // hide plane initially
 scene.add(plane);
 
-// Terminal logic
+// --- Startup animation ---
+async function startupAnimation() {
+
+
+    
+
+    plane.visible = true;
+    ctx.fillStyle = 'transparent';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const steps = 96;
+    const delay = 10;
+    for (let i = 0; i < steps; i++) {
+        ctx.fillStyle = `rgba(0,255,0,${i / (4*steps)})`;
+        ctx.fillRect(0, 6 * i, canvas.width, 2);
+        texture.needsUpdate = true;
+        await new Promise(r => setTimeout(r, delay));
+    }
+    
+
+    ctx.fillStyle = '#00ff00';
+    ctx.shadowColor = 'rgba(0,255,0,1)';
+    ctx.shadowBlur = 10; // adjust for glow intensity
+ 
+    ctx.font = '28px monospace';
+    ctx.fillText("GORDION INDUSTRIES", canvas.width/2 - 130, canvas.height/2);
+    texture.needsUpdate = true;
+
+    await new Promise(r => setTimeout(r, 1500));
+
+    renderCanvas();
+
+}
+
+// --- Terminal logic ---
 let lines = ["yo mista wite, we got it working"];
 let currentInput = "";
 
 function renderCanvas() {
-  // scanlines removed by changes here, see prev ctx.fillrect and prev line (to that) c v here and it'll work
-  
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#00ff00';
-  ctx.font = '20px monospace';
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if(plane.visible)
+    {
+    ctx.fillStyle = '#00ff00';
+    ctx.shadowColor = '#00ff00';
+    ctx.shadowBlur = 15; // adjust for glow intensity
 
-  for (let i = 0; i < lines.length; i++) {
-    ctx.fillText(lines[i], 10, 30 + i*25);
-  }
+    ctx.font = '25px monospace';
+    for (let i = 0; i < lines.length; i++) {
+        ctx.fillText(lines[i], 10, 25 + i*25);
+        
+    }
+    ctx.fillText("> " + currentInput + "_", 10, 30 + lines.length*25);
+    
+    
 
-  // Draw current input
-  ctx.fillText("> " + currentInput + "_", 10, 30 + lines.length*25);
+    ctx.shadowBlur = 0;
+    drawScanlines(ctx, canvas.width, canvas.height, 6);
 
-  drawScanlines(ctx, canvas.width, canvas.height, 6); // spacing = 6px
-
-
-  texture.needsUpdate = true;
+    }
+   
+    texture.needsUpdate = true;
 }
 
 function drawScanlines(ctx, canvasWidth, canvasHeight, spacing = 2) {
-    ctx.strokeStyle = 'rgba(0,255,0,0.2)'; // subtle green lines
+    ctx.strokeStyle = 'rgba(0,255,0,0.2)';
     ctx.lineWidth = 1;
     for (let y = 0; y < canvasHeight; y += spacing) {
         ctx.beginPath();
-        ctx.moveTo(0, y + 0.8); // 0.5 for sharper line
+        ctx.moveTo(0, y + 0.8);
         ctx.lineTo(canvasWidth, y + 0.5);
         ctx.stroke();
     }
 }
 
-
-
-// Command map with functions
+// --- Commands ---
 const commands = {
-
-// String commands
-
-  help: () => ["Available commands:", "HELP", "STATUS", "ABOUT", "CLEAR", "CREATURES"],
-  status: () => ["All systems operational."],
-  about: () => ["Curved CRT terminal demo."],
-  creatures: () => ["BARBER", "BRACKEN", "BUNKER SPIDER", "BUTLER", "COIL-HEAD", "GHOST GIRL", "HOARDING BUG", "HYGRODERE", "JESTER", "MANEATER", "MASKED", "NUTCRACKER", "SNARE FLEA", "SPORE LIZARD", "THUMPER"],
-
-// Creatures
-
-  barber: () => {
-    const br = {};
-    br.health = "Invincible";
-    br.powerLevel = 1;
-    br.maxSpawned = 1;
-    br.favoriteMoon = "7-Dine";
-    return ["I had a dream about the Barber", "", "One day he made me a wig", "", "Because his scissors were too big"];
-  },
-
-// Function commands
-
-  clear: () => { 
-    lines = [];  // clear the terminal lines
-    return ["Terminal cleared."]; // optional feedback
-  }
-
-
-
-
-
+    help: () => ["Available commands:", "HELP", "STATUS", "ABOUT", "CLEAR", "CREATURES"],
+    status: () => ["All systems operational."],
+    about: () => ["Curved CRT terminal demo."],
+    creatures: () => ["BARBER", "BRACKEN", "BUNKER SPIDER", "BUTLER", "COIL-HEAD", "GHOST GIRL", "HOARDING BUG", "HYGRODERE", "JESTER", "MANEATER", "MASKED", "NUTCRACKER", "SNARE FLEA", "SPORE LIZARD", "THUMPER"],
+    barber: () => {
+        const br = {};
+        br.health = "Invincible";
+        br.powerLevel = 1;
+        br.maxSpawned = 1;
+        br.favoriteMoon = "7-Dine";
+        return ["I had a dream about the Barber", "", "One day he made me a wig", "", "Because his scissors were too big"];
+    },
+    clear: () => {
+        lines = [];
+        return ["Terminal cleared."];
+    }
 };
 
-window.addEventListener('keydown', e => {
+// --- Input handling ---
+window.addEventListener('keydown', async (e) => {
 
+  
+    if (!startupDone) {
+      if(SUinitiated) return;
+        SUinitiated = true;
+        await startupAnimation();
+        startupDone = true;
+        return;
+    }else {
 
-  // Normal character input
-  if (e.key.length === 1) {
-    
-    currentInput += e.key;
-    playClick();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
 
-
-  }
-  // Backspace
-  if (e.key === "Backspace") {
-    
-    currentInput = currentInput.slice(0, -1);
-    playClick();
-
-  }
-  // Enter / execute command
-  if (e.key === "Enter") {
-    playClick();
-    const inputValue = currentInput.trim();
-    lines.push("> " + inputValue);
-
-    const commandFn = commands[inputValue.toLowerCase()];
-    if (commandFn) {
-      // Execute function; append returned lines if any
-      const result = commandFn();
-      if (result && result.length) result.forEach(line => lines.push(line));
-    } else if (inputValue !== "") {
-      lines.push("Unknown command: " + inputValue);
+    if (e.key.length === 1) currentInput += e.key;
+    if (e.key === "Backspace") currentInput = currentInput.slice(0, -1);
+    if (e.key === "Enter") {
+        const inputValue = currentInput.trim();
+        lines.push("> " + inputValue);
+        const commandFn = commands[inputValue.toLowerCase()];
+        if (commandFn) {
+            const result = commandFn();
+            if (result && result.length) result.forEach(line => lines.push(line));
+        } else if (inputValue !== "") {
+            lines.push("Unknown command: " + inputValue);
+        }
+        currentInput = "";
+        if (lines.length > 21) lines = lines.slice(lines.length-21);
     }
 
-    currentInput = "";
-
-    // Keep only last 15 lines
-    if (lines.length > 15) lines = lines.slice(lines.length - 15);
+    playClick();
+    renderCanvas();
   }
 
-  renderCanvas();
 });
-
-
 
 renderCanvas();
 
-// Render loop
+// --- Render loop ---
 function animate() {
-  requestAnimationFrame(animate);
-  renderer.render(scene, camera);
+    requestAnimationFrame(animate);
+    renderer.render(scene, camera);
 }
 animate();
-
-// Resize handling
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
 </script>
 </body>
 </html>
