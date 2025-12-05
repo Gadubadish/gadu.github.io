@@ -276,7 +276,7 @@ window.addEventListener('keydown', async (e) => {
 
     if (e.key.length === 1) currentInput += e.key;
     if (e.key === "Backspace") currentInput = currentInput.slice(0, -1);
-    if (e.key === "Enter" && inputValue !== "") {
+    if (e.key === "Enter") {
         
         lines = [];
 
